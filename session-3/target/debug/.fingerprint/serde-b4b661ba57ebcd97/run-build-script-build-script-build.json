@@ -1,0 +1,1 @@
+{"rustc":9242022614936297765,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[7037689854638275688,"build_script_build",false,15982347911457577999]],"local":[{"RerunIfChanged":{"output":"debug/build/serde-b4b661ba57ebcd97/output","paths":["build.rs"]}}],"rustflags":["--cfg","procmacro2_semver_exempt"],"metadata":0,"config":0,"compile_kind":0}

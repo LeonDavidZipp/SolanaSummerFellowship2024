@@ -1,0 +1,9 @@
+/Users/leon/Desktop/Solana/SummerFellowship2024/session-3/target/debug/deps/libanchor_lang_idl_spec-2f1c32d3100271f5.rmeta: /Users/leon/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anchor-lang-idl-spec-0.1.0/src/lib.rs
+
+/Users/leon/Desktop/Solana/SummerFellowship2024/session-3/target/debug/deps/libanchor_lang_idl_spec-2f1c32d3100271f5.rlib: /Users/leon/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anchor-lang-idl-spec-0.1.0/src/lib.rs
+
+/Users/leon/Desktop/Solana/SummerFellowship2024/session-3/target/debug/deps/anchor_lang_idl_spec-2f1c32d3100271f5.d: /Users/leon/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anchor-lang-idl-spec-0.1.0/src/lib.rs
+
+/Users/leon/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anchor-lang-idl-spec-0.1.0/src/lib.rs:
+
+# env-dep:CARGO_PKG_VERSION=0.1.0
