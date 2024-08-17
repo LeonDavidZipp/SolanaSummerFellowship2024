@@ -6,8 +6,7 @@ import { assert } from "chai";
 
 describe("asset_manager", () => {
   // Configure the client to use the local cluster.
-  const provider = anchor.AnchorProvider.env();
-  anchor.setProvider(provider);
+  anchor.setProvider(anchor.AnchorProvider.env());
 
   const program = anchor.workspace.AssetManager as Program<AssetManager>;
 
