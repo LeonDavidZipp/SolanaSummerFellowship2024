@@ -9,6 +9,7 @@ import {
     TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { assert } from "chai";
 
 describe("asset_manager", () => {
     anchor.setProvider(anchor.AnchorProvider.env());
@@ -22,7 +23,7 @@ describe("asset_manager", () => {
     let mint: anchor.web3.PublicKey;
     let tokenAccount: anchor.web3.PublicKey;
     let userTokenAccount: anchor.web3.PublicKey;
-    let vaultTokenAccount: anchor.web3.PublicKey;
+    let vaultPda: anchor.web3.PublicKey;
 
     before(async () => {
         const signer = anchor.web3.Keypair.generate();
@@ -42,7 +43,7 @@ describe("asset_manager", () => {
             signer,
             signer.publicKey,
             signer.publicKey,
-            9
+            8
         );
         console.log("mint", mint.toBase58());
 
@@ -107,11 +108,10 @@ describe("asset_manager", () => {
 
         vault = anchor.web3.Keypair.generate();
         console.log("vault pub key", vault.publicKey.toBase58());
-        vaultTokenAccount = await createAssociatedTokenAccount(
-            provider.connection,
-            signer,
-            mint,
-            vault.publicKey
+
+        [vaultPda] = await anchor.web3.PublicKey.findProgramAddressSync(
+            [Buffer.from("vault"), manager.publicKey.toBuffer()],
+            program.programId
         );
     });
 
@@ -121,11 +121,9 @@ describe("asset_manager", () => {
             .accounts({
                 user: user.publicKey,
                 manager: manager.publicKey,
-                vault: vault.publicKey,
-                vaultTokenAccount: vaultTokenAccount,
                 mint: mint,
             })
-            .signers([])
+            .signers([user])
             .rpc();
 
         console.log("transaction", transaction);

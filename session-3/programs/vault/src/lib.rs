@@ -74,12 +74,14 @@ mod asset_manager {
 pub struct InitializeVault<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
-    #[account(mut)]
-    pub manager: Signer<'info>,
+    /// CHECK: only needs to be read
+    pub manager: AccountInfo<'info>,
     #[account(
         init,
         payer = user,
-        space = 8 + 32 + 8, // 8 bytes for manager, 32 bytes for deposits, 8 bytes for length
+        space = 8 + 32 + 8 + 124,
+        seeds = [b"vault", manager.key().as_ref()],
+        bump
     )]
     pub vault: Account<'info, Vault>,
     #[account(
@@ -89,7 +91,6 @@ pub struct InitializeVault<'info> {
         token::authority = vault,
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
-    #[account(mut)]
     pub mint: Account<'info, Mint>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
@@ -122,12 +123,21 @@ pub struct Deposit<'info> {
 pub struct Withdraw<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
-    #[account(mut)]
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = user
+    )]
     pub user_token_account: Account<'info, TokenAccount>,
     #[account(mut)]
     pub vault: Account<'info, Vault>,
-    #[account(mut)]
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = vault
+    )]
     pub vault_token_account: Account<'info, TokenAccount>,
+    pub mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
 }
 
