@@ -1,0 +1,3 @@
+- l25: undeflow, use `checked_sub` instead
+- l26: overflow, use `checked_add` instead
+- l31: function only logs, does nothing else
