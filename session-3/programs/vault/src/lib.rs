@@ -1,18 +1,16 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{TokenAccount, Transfer, transfer};
-use std::collections::HashMap;
+use anchor_spl::token::{TokenAccount, Token, Transfer, transfer, Mint};
 
-declare_id!("C93fyDjEmyAfr9nwDeWMVCeWVVx8fjySxnshSA9VY4KG");
+declare_id!("7svqDu7iEfv47vCQHCPfXvgZ9pgfqTXEmdepVsZRHNZ1");
 
 #[program]
-pub mod asset_manager {
+mod asset_manager {
     use super::*;
-    // use anchor_spl::token::{Transfer, transfer};
 
     pub fn initialize_vault(ctx: Context<InitializeVault>) -> Result<()> {
         let vault = &mut ctx.accounts.vault;
         vault.manager = *ctx.accounts.manager.key;
-        vault.deposits = HashMap::new();
+        vault.deposits = Vec::new();
         Ok(())
     }
 
@@ -29,8 +27,9 @@ pub mod asset_manager {
 
         let user_key = *ctx.accounts.user.key;
         let vault = &mut ctx.accounts.vault;
-        let user_deposit = vault.deposits.entry(user_key).or_insert(0);
-        *user_deposit += amount;
+        let deposit = vault.get_deposit(&user_key).unwrap_or(0);
+        let new_deposit = deposit.checked_add(amount).ok_or(ErrorCode::InsufficientFunds)?;
+        vault.insert_deposit(user_key, new_deposit);
 
         Ok(())
     }
@@ -44,16 +43,17 @@ pub mod asset_manager {
             return Err(ErrorCode::Unauthorized.into());
         }
 
-        let user_deposit = vault.deposits.get_mut(&user_key).ok_or(ErrorCode::InsufficientFunds)?;
-        require!(*user_deposit >= amount, ErrorCode::InsufficientFunds);
+        let deposit = vault.get_deposit(&user_key).ok_or(ErrorCode::InsufficientFunds)?;
+        require!(deposit >= amount, ErrorCode::InsufficientFunds);
 
-        *user_deposit -= amount;
+        let new_deposit = deposit.checked_sub(amount).ok_or(ErrorCode::InsufficientFunds)?;
+        vault.insert_deposit(user_key, new_deposit);
 
         // Perform the token transfer using the vault's authority
         let cpi_accounts = Transfer {
             from: ctx.accounts.vault_token_account.to_account_info(),
             to: ctx.accounts.user_token_account.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(), // Use vault's authority
+            authority: ctx.accounts.vault.to_account_info(),
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
@@ -66,11 +66,28 @@ pub mod asset_manager {
 // validator structs
 #[derive(Accounts)]
 pub struct InitializeVault<'info> {
-    #[account(init, payer = manager, space = 8 + 32)]
-    pub vault: Account<'info, Vault>,
+    #[account(mut)]
+    pub user: Signer<'info>, // creator and signer do not have to be the same
     #[account(mut)]
     pub manager: Signer<'info>,
+    #[account(
+        init,
+        payer = user,
+        space = 8 + 32
+    )]
+    pub vault: Account<'info, Vault>,
+    #[account(
+        init,
+        payer = user,
+        token::mint = mint,
+        token::authority = vault,
+        seeds = [b"vault_token_account", vault.key().as_ref()],
+        bump
+    )]
+    pub vault_token_account: Account<'info, TokenAccount>,
+    pub mint: Account<'info, Mint>,
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -81,10 +98,15 @@ pub struct Deposit<'info> {
     pub user_token_account: Account<'info, TokenAccount>,
     #[account(mut)]
     pub vault: Account<'info, Vault>,
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"vault_token_account", vault.key().as_ref()],
+        bump
+    )]
     pub vault_token_account: Account<'info, TokenAccount>,
-    /// CHECK: This is not dangerous because we don't read or write from this account
-    pub token_program: AccountInfo<'info>,
+    pub mint: Account<'info, Mint>,
+    pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -97,8 +119,7 @@ pub struct Withdraw<'info> {
     pub vault: Account<'info, Vault>,
     #[account(mut)]
     pub vault_token_account: Account<'info, TokenAccount>,
-    /// CHECK: This is not dangerous because we don't read or write from this account
-    pub token_program: AccountInfo<'info>,
+    pub token_program: Program<'info, Token>,
 }
 
 // accounts:
@@ -106,7 +127,29 @@ pub struct Withdraw<'info> {
 #[derive(Default)]
 pub struct Vault {
     pub manager: Pubkey,
-    pub deposits: HashMap<Pubkey, u64>
+    pub deposits: Vec<(Pubkey, u64)>,
+}
+
+impl Vault {
+    pub fn get_deposit(&self, key: &Pubkey) -> Option<u64> {
+        self.deposits.iter().find(|(k, _)| k == key).map(|(_, v)| *v)
+    }
+
+    pub fn insert_deposit(&mut self, key: Pubkey, value: u64) {
+        if let Some((_, v)) = self.deposits.iter_mut().find(|(k, _)| k == &key) {
+            *v = value;
+        } else {
+            self.deposits.push((key, value));
+        }
+    }
+
+    pub fn remove_deposit(&mut self, key: &Pubkey) -> Option<u64> {
+        if let Some(pos) = self.deposits.iter().position(|(k, _)| k == key) {
+            Some(self.deposits.remove(pos).1)
+        } else {
+            None
+        }
+    }
 }
 
 // errors:
