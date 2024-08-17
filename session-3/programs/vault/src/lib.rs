@@ -73,7 +73,7 @@ pub struct InitializeVault<'info> {
     #[account(
         init,
         payer = user,
-        space = 8 + 32
+        space = size_of::<Vault>()
     )]
     pub vault: Account<'info, Vault>,
     #[account(
@@ -83,6 +83,7 @@ pub struct InitializeVault<'info> {
         token::authority = vault,
         seeds = [b"vault_token_account", vault.key().as_ref()],
         bump
+        space = size_of::<TokenAccount>()
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
     pub mint: Account<'info, Mint>,
