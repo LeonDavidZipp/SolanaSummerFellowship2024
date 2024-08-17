@@ -89,6 +89,7 @@ pub struct InitializeVault<'info> {
         token::authority = vault,
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
+    #[account(mut)]
     pub mint: Account<'info, Mint>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,

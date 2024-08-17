@@ -6,12 +6,12 @@ import {
     mintTo,
     createAssociatedTokenAccount,
     transfer,
+    TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 describe("asset_manager", () => {
-    // Configure the client to use the local cluster.
-    anchor.setProvider(anchor.AnchorProvider.local());
+    anchor.setProvider(anchor.AnchorProvider.env());
 
     const program = anchor.workspace.AssetManager as Program<AssetManager>;
     const provider = anchor.getProvider();
@@ -26,6 +26,7 @@ describe("asset_manager", () => {
 
     before(async () => {
         const signer = anchor.web3.Keypair.generate();
+        console.log("signer pub key", signer.publicKey.toBase58());
         let signature = await provider.connection.requestAirdrop(
             signer.publicKey,
             5 * LAMPORTS_PER_SOL
@@ -43,6 +44,7 @@ describe("asset_manager", () => {
             signer.publicKey,
             9
         );
+        console.log("mint", mint.toBase58());
 
         tokenAccount = await createAssociatedTokenAccount(
             provider.connection,
@@ -50,6 +52,7 @@ describe("asset_manager", () => {
             mint,
             signer.publicKey
         );
+        console.log("token account", tokenAccount.toBase58());
 
         await mintTo(
             provider.connection,
@@ -61,6 +64,7 @@ describe("asset_manager", () => {
         );
 
         user = anchor.web3.Keypair.generate();
+        console.log("user pub key", user.publicKey.toBase58());
         signature = await provider.connection.requestAirdrop(
             user.publicKey,
             20 * LAMPORTS_PER_SOL
@@ -77,6 +81,7 @@ describe("asset_manager", () => {
             mint,
             user.publicKey
         );
+        console.log("user token account", userTokenAccount.toBase58());
 
         await transfer(
             provider.connection,
@@ -86,8 +91,10 @@ describe("asset_manager", () => {
             signer,
             500
         );
+        console.log("user token account", userTokenAccount.toBase58());
 
         manager = anchor.web3.Keypair.generate();
+        console.log("manager pub key", manager.publicKey.toBase58());
         signature = await provider.connection.requestAirdrop(
             manager.publicKey,
             20 * LAMPORTS_PER_SOL
@@ -99,6 +106,7 @@ describe("asset_manager", () => {
         );
 
         vault = anchor.web3.Keypair.generate();
+        console.log("vault pub key", vault.publicKey.toBase58());
         vaultTokenAccount = await createAssociatedTokenAccount(
             provider.connection,
             signer,
@@ -108,7 +116,7 @@ describe("asset_manager", () => {
     });
 
     it("Initializes a vault", async () => {
-        await program.methods
+        const transaction = await program.methods
             .initializeVault()
             .accounts({
                 user: user.publicKey,
@@ -117,8 +125,10 @@ describe("asset_manager", () => {
                 vaultTokenAccount: vaultTokenAccount,
                 mint: mint,
             })
-            .signers([user, manager, vault])
+            .signers([])
             .rpc();
+
+        console.log("transaction", transaction);
     });
 
     it("Deposits tokens into the vault", async () => {
