@@ -11,10 +11,19 @@ mod asset_manager {
         let vault = &mut ctx.accounts.vault;
         vault.manager = *ctx.accounts.manager.key;
         vault.deposits = Vec::new();
+        vault.mint = ctx.accounts.mint.key();
         Ok(())
     }
 
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+        let user_key = *ctx.accounts.user.key;
+        let vault = &mut ctx.accounts.vault;
+        let mint = ctx.accounts.vault_token_account.mint;
+
+        require_eq!(mint, ctx.accounts.user_token_account.mint, ErrorCode::InvalidToken);
+        require_neq!(user_key, vault.manager, ErrorCode::Unauthorized);
+
+
         let cpi_accounts = Transfer {
             from: ctx.accounts.user_token_account.to_account_info(),
             to: ctx.accounts.vault_token_account.to_account_info(),
@@ -25,8 +34,6 @@ mod asset_manager {
 
         transfer(cpi_ctx, amount)?;
 
-        let user_key = *ctx.accounts.user.key;
-        let vault = &mut ctx.accounts.vault;
         let deposit = vault.get_deposit(&user_key).unwrap_or(0);
         let new_deposit = deposit.checked_add(amount).ok_or(ErrorCode::InsufficientFunds)?;
         vault.insert_deposit(user_key, new_deposit);
@@ -37,27 +44,26 @@ mod asset_manager {
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         let vault = &mut ctx.accounts.vault;
         let user_key = *ctx.accounts.user.key;
+        let mint = ctx.accounts.vault_token_account.mint;
 
-        // Prevent the manager from withdrawing funds
-        if user_key == vault.manager {
-            return Err(ErrorCode::Unauthorized.into());
-        }
+        require_eq!(mint, ctx.accounts.user_token_account.mint, ErrorCode::InvalidToken);
+        require_neq!(user_key, vault.manager, ErrorCode::Unauthorized);
 
         let deposit = vault.get_deposit(&user_key).ok_or(ErrorCode::InsufficientFunds)?;
         require!(deposit >= amount, ErrorCode::InsufficientFunds);
-
-        let new_deposit = deposit.checked_sub(amount).ok_or(ErrorCode::InsufficientFunds)?;
-        vault.insert_deposit(user_key, new_deposit);
 
         // Perform the token transfer using the vault's authority
         let cpi_accounts = Transfer {
             from: ctx.accounts.vault_token_account.to_account_info(),
             to: ctx.accounts.user_token_account.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(),
+            authority: vault.to_account_info(),
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         transfer(cpi_ctx, amount)?;
+
+        let new_deposit = deposit.checked_sub(amount).ok_or(ErrorCode::InsufficientFunds)?;
+        vault.insert_deposit(user_key, new_deposit);
 
         Ok(())
     }
@@ -67,13 +73,13 @@ mod asset_manager {
 #[derive(Accounts)]
 pub struct InitializeVault<'info> {
     #[account(mut)]
-    pub user: Signer<'info>, // creator and signer do not have to be the same
+    pub user: Signer<'info>,
     #[account(mut)]
     pub manager: Signer<'info>,
     #[account(
         init,
         payer = user,
-        space = size_of::<Vault>()
+        space = 8 + 32 + 8, // 8 bytes for manager, 32 bytes for deposits, 8 bytes for length
     )]
     pub vault: Account<'info, Vault>,
     #[account(
@@ -82,8 +88,7 @@ pub struct InitializeVault<'info> {
         token::mint = mint,
         token::authority = vault,
         seeds = [b"vault_token_account", vault.key().as_ref()],
-        bump
-        space = size_of::<TokenAccount>()
+        bump,
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
     pub mint: Account<'info, Mint>,
@@ -127,8 +132,9 @@ pub struct Withdraw<'info> {
 #[account]
 #[derive(Default)]
 pub struct Vault {
-    pub manager: Pubkey,
-    pub deposits: Vec<(Pubkey, u64)>,
+    pub manager: Pubkey, // manager of the vault
+    pub mint: Pubkey, // mint that is allowed
+    pub deposits: Vec<(Pubkey, u64)>, // user deposits
 }
 
 impl Vault {
@@ -160,4 +166,6 @@ pub enum ErrorCode {
     InsufficientFunds,
     #[msg("Unauthorized access")]
     Unauthorized,
+    #[msg("Invalid token")]
+    InvalidToken,
 }
