@@ -87,8 +87,6 @@ pub struct InitializeVault<'info> {
         payer = user,
         token::mint = mint,
         token::authority = vault,
-        seeds = [b"vault_token_account", vault.key().as_ref()],
-        bump,
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
     pub mint: Account<'info, Mint>,
@@ -100,14 +98,18 @@ pub struct InitializeVault<'info> {
 pub struct Deposit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
-    #[account(mut)]
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = user
+    )]
     pub user_token_account: Account<'info, TokenAccount>,
     #[account(mut)]
     pub vault: Account<'info, Vault>,
     #[account(
         mut,
-        seeds = [b"vault_token_account", vault.key().as_ref()],
-        bump
+        associated_token::mint = mint,
+        associated_token::authority = vault
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
     pub mint: Account<'info, Mint>,
