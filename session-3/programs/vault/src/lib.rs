@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{TokenAccount, Token, Transfer, transfer, Mint};
+use std::mem::size_of;
 
 declare_id!("7svqDu7iEfv47vCQHCPfXvgZ9pgfqTXEmdepVsZRHNZ1");
 
@@ -72,14 +73,14 @@ mod asset_manager {
 // validator structs
 #[derive(Accounts)]
 pub struct InitializeVault<'info> {
-    #[account(mut)]
+    #[account(mut, signer)]
     pub user: Signer<'info>,
     /// CHECK: only needs to be read
     pub manager: AccountInfo<'info>,
     #[account(
         init,
         payer = user,
-        space = 8 + 32 + 8 + 124,
+        space = size_of::<Vault>() + size_of::<Vec<(Pubkey, u64)>>(),
         seeds = [b"vault", manager.key().as_ref()],
         bump
     )]
@@ -100,22 +101,14 @@ pub struct InitializeVault<'info> {
 pub struct Deposit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = user
-    )]
+    #[account(mut)]
     pub user_token_account: Account<'info, TokenAccount>,
     #[account(mut)]
     pub vault: Account<'info, Vault>,
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = vault
-    )]
+    #[account(mut)]
     pub vault_token_account: Account<'info, TokenAccount>,
-    pub mint: Account<'info, Mint>,
-    pub system_program: Program<'info, System>,
+    // pub mint: Account<'info, Mint>,
+    // pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
 }
 
