@@ -1,42 +1,39 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { AssetManager } from "../target/types/asset_manager";
+import { TokenVault } from "../target/types/token_vault";
 import {
     createMint,
     mintTo,
     createAssociatedTokenAccount,
     transfer,
+    getAssociatedTokenAddress,
     TOKEN_PROGRAM_ID,
+    TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { assert } from "chai";
 
-describe("asset_manager", () => {
+describe("token_vault", () => {
     anchor.setProvider(anchor.AnchorProvider.env());
 
-    const program = anchor.workspace.AssetManager as Program<AssetManager>;
+    const program = anchor.workspace.TokenVault as Program<TokenVault>;
     const provider = anchor.getProvider();
 
-    let vault: anchor.web3.Keypair;
-    let user: anchor.web3.Keypair;
-    let manager: anchor.web3.Keypair;
     let mint: anchor.web3.PublicKey;
     let tokenAccount: anchor.web3.PublicKey;
+    let manager: anchor.web3.Keypair;
+    let user: anchor.web3.Keypair;
     let userTokenAccount: anchor.web3.PublicKey;
-    let vaultPda: anchor.web3.PublicKey;
+    let vaultTokenAccount: anchor.web3.PublicKey;
+    let vaultPDA: anchor.web3.PublicKey;
 
     before(async () => {
         const signer = anchor.web3.Keypair.generate();
-        console.log("signer pub key", signer.publicKey.toBase58());
         let signature = await provider.connection.requestAirdrop(
             signer.publicKey,
             5 * LAMPORTS_PER_SOL
         );
         await provider.connection.confirmTransaction(signature);
-        console.log(
-            "signer balance",
-            await provider.connection.getBalance(signer.publicKey)
-        );
 
         mint = await createMint(
             provider.connection,
@@ -45,7 +42,6 @@ describe("asset_manager", () => {
             signer.publicKey,
             8
         );
-        console.log("mint", mint.toBase58());
 
         tokenAccount = await createAssociatedTokenAccount(
             provider.connection,
@@ -53,7 +49,6 @@ describe("asset_manager", () => {
             mint,
             signer.publicKey
         );
-        console.log("token account", tokenAccount.toBase58());
 
         await mintTo(
             provider.connection,
@@ -64,17 +59,13 @@ describe("asset_manager", () => {
             1000
         );
 
+        // user = provider.connection.;
         user = anchor.web3.Keypair.generate();
-        console.log("user pub key", user.publicKey.toBase58());
         signature = await provider.connection.requestAirdrop(
             user.publicKey,
             20 * LAMPORTS_PER_SOL
         );
         await provider.connection.confirmTransaction(signature);
-        console.log(
-            "user balance",
-            await provider.connection.getBalance(user.publicKey)
-        );
 
         userTokenAccount = await createAssociatedTokenAccount(
             provider.connection,
@@ -82,7 +73,6 @@ describe("asset_manager", () => {
             mint,
             user.publicKey
         );
-        console.log("user token account", userTokenAccount.toBase58());
 
         await transfer(
             provider.connection,
@@ -92,34 +82,32 @@ describe("asset_manager", () => {
             signer,
             500
         );
-        console.log("user token account", userTokenAccount.toBase58());
 
         manager = anchor.web3.Keypair.generate();
-        console.log("manager pub key", manager.publicKey.toBase58());
         signature = await provider.connection.requestAirdrop(
             manager.publicKey,
             20 * LAMPORTS_PER_SOL
         );
         await provider.connection.confirmTransaction(signature);
-        console.log(
-            "manager balance",
-            await provider.connection.getBalance(manager.publicKey)
-        );
 
-        vault = anchor.web3.Keypair.generate();
-        console.log("vault pub key", vault.publicKey.toBase58());
-
-        [vaultPda] = await anchor.web3.PublicKey.findProgramAddressSync(
+        [vaultPDA] = await anchor.web3.PublicKey.findProgramAddressSync(
             [Buffer.from("vault"), manager.publicKey.toBuffer()],
             program.programId
+        );
+
+        vaultTokenAccount = await getAssociatedTokenAddress(
+            mint,
+            vaultPDA,
+            true,
+            TOKEN_2022_PROGRAM_ID
         );
     });
 
     it("Initializes a vault", async () => {
         const transaction = await program.methods
-            .initializeVault()
+            .initialize()
             .accounts({
-                user: user.publicKey,
+                signer: user.publicKey,
                 manager: manager.publicKey,
                 mint: mint,
             })
@@ -130,22 +118,25 @@ describe("asset_manager", () => {
     });
 
     it("Deposits tokens into the vault", async () => {
-        // await program.methods
-        //     .deposit(new anchor.BN(500))
-        //     .accounts({
-        //         user: user.publicKey,
-        //         userTokenAccount: userTokenAccount,
-        //         vault: vault.publicKey,
-        //         vaultTokenAccount: vaultTokenAccount,
-        //         tokenProgram: TOKEN_PROGRAM_ID,
-        //     })
-        //     .signers([user])
-        //     .rpc();
-        // const vaultAccount = await program.account.vault.fetch(vault.publicKey);
-        // const userDeposit = vaultAccount.deposits.find(
-        //     (d: any) => d[0].toBase58() === user.publicKey.toBase58()
-        // );
-        // assert.equal(userDeposit[1].toNumber(), 500);
+        const amount = new anchor.BN(100); // Example amount to deposit
+
+        try {
+            const transaction = await program.methods
+                .deposit(amount)
+                .accounts({
+                    from: user.publicKey,
+                    vault: vaultPDA,
+                    // userTokenAccount: userTokenAccount,
+                    // vaultTokenAccount: vaultTokenAccount,
+                    mint: mint,
+                })
+                .signers([user])
+                .rpc();
+
+            console.log("deposit transaction", transaction);
+        } catch (error) {
+            console.log("error", error);
+        }
     });
 
     it("Deposit Overflow", async () => {});
